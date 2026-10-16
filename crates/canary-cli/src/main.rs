@@ -3,6 +3,8 @@
 mod cli;
 mod commands;
 mod error;
+mod fixtures_json;
+mod inspect_json;
 mod network;
 
 use clap::Parser;
