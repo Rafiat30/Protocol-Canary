@@ -6,6 +6,33 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- `stellar-canary inspect --format json` (and the `--json` shorthand): the
+  versioned `inspectVersion: 1` document of CA-03 — project type and
+  capabilities, the effective configuration, the target protocol and its
+  source, and the fixture plan with `wouldRun`, `skipped` (with the stable
+  `code`), `checkWouldRefuse` and `refusal`. The command stays offline and the
+  `terminal` output is unchanged, byte for byte.
+- The inspect/check parity suite (issue #485, unit CA-03-D): asserts that the
+  ids *and order* in `inspect`'s `plan.wouldRun` equal the `results` a
+  `check --format json` run executes, that skips match too, and that a
+  discrepancy fails with a message naming both lists.
+- CF-04 verification evidence (first part of #443): fixtures may carry a
+  `[verification]` table with a `verificationVersion: 1` record (`method`,
+  `checkedAt`, optional `network`/`verifier`/`endpointHost`/`evidenceRef`,
+  `outcome`). The table is validated strictly against CF-04 section 3 (unknown
+  keys, a mismatched `fixtureId`, a live method without `network`, a malformed
+  `checkedAt` are invalid fixtures, exit 4) and is lifted out of the
+  surface-specific body, so no surface runner ever sees it.
+- `stellar-canary fixtures --format json` (and the `--json` shorthand): the
+  `inventoryVersion: 1` inventory of CA-02 — counts, `otherProtocols`, fixtures
+  sorted by id with `/`-relative paths, per-surface fields, and the reserved
+  `verification` object copied as stored (issue #444, CA-02-E). The terminal
+  listing is unchanged.
+- Verification badges in the terminal report (issue #444): when a run's
+  fixtures carry evidence, each result row shows `[verified: <method>]`,
+  `[unverified: <method> record mismatched]` or `[unverified]` — the unknown
+  state is displayed, never omitted. Runs without evidence keep the compact
+  `N/N PASS` output.
 - `--project-root <PATH>` on `check`, `inspect` and `fixtures` (CF-07, D-08).
   Relative `--config`, `--fixtures-dir` and `--output` paths resolve against
   it. A path that does not exist or is not a directory exits `2`. Without the
@@ -24,6 +51,29 @@ All notable changes to this project are documented in this file.
   reserved for a future network-identity skip). `schemaVersion` stays `1`;
   older reports lack the field, which reads back as `UNKNOWN`, and
   consumers must ignore codes they do not know.
+- `canary_fixtures::pack_digest`: the `canary-pack-v1` digest of a fixture
+  pack (CF-02), with the file list it was computed from. It is distinct from
+  the engine's internal per-fixture cache key. No command uses it yet.
+- RPC fixtures accept a `[request]` table for methods that take parameters.
+  It is validated when the fixture is loaded against the CA-01 parameter
+  table (unknown key, wrong type, out-of-range value, `xdrFormat = "json"`
+  and `[request]` on a parameterless method are invalid fixtures, exit `4`).
+  The engine still runs only `get-network` and `get-latest-ledger`.
+- `canary_report::diff`: the report comparison model, status transition
+  table, eligibility checks and `diffVersion` 1 JSON (CF-05). A library
+  only; there is no `diff` subcommand yet.
+- `viewer/`: a static, browser-local report viewer shell with a strict
+  Content-Security-Policy (CF-08). Not published to GitHub Pages yet.
+- Soroban fixtures accept `bytes` (a `0x`-prefixed hex string, otherwise
+  padded base64), `address` (a `G...` account or `C...` contract strkey),
+  `vec` and `map` arguments. `vec` and `map` nest up to 8 levels deep and a
+  map is encoded with its keys sorted; a repeated key is rejected. A secret
+  seed given as an address is rejected and never echoed.
+- Cargo workspace members are detected (CF-07): `[workspace] members` and
+  `exclude` are read with `*` and `?` globs up to 4 levels deep, at most 64
+  members are scanned (a boundary diagnostic is returned beyond that), and a
+  virtual workspace whose members use `soroban-sdk` is now detected as a
+  Soroban project instead of `Unknown`. Symbolic links are not followed.
 
 ### Changed
 
