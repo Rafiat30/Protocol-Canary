@@ -2,6 +2,7 @@
 
 mod cli;
 mod commands;
+mod error;
 mod network;
 
 use clap::Parser;

@@ -14,6 +14,7 @@ use canary_rpc::{validate_network_info, HttpRpcClient, RpcClient, RpcError};
 use canary_runner::EnabledSurfaces;
 
 use crate::cli::{CheckArgs, FixturesArgs, InspectArgs, OutputFormat, ReportArgs};
+use crate::error::{hint_for, print_error};
 use crate::network::{default_passphrase, default_rpc_url, parse_network_name};
 
 const CACHE_DIR_NAME: &str = ".stellar-canary-cache";
@@ -134,7 +135,7 @@ pub async fn run_check(args: CheckArgs) -> ExitCode {
     match run_check_inner(args).await {
         Ok(exit_code) => exit_code,
         Err(err) => {
-            eprintln!("error: {err}");
+            print_error(&err);
             ExitCode::from(&err)
         }
     }
@@ -207,6 +208,10 @@ async fn run_check_inner(args: CheckArgs) -> Result<ExitCode, CanaryError> {
                 }
                 (Some(ProtocolVersion(info.protocol_version)), None)
             }
+            // A transport failure does not abort the run — each fixture
+            // still reports the outage as an execution error — and the
+            // matching `Hint:` is printed once at the end of the run, when
+            // (and only when) that outage is the run's outcome.
             Err(e) => (None, Some(e.to_string())),
         };
 
@@ -352,6 +357,22 @@ async fn run_check_inner(args: CheckArgs) -> Result<ExitCode, CanaryError> {
     }
     println!("{rendered}");
 
+    // A transport failure surfaces as execution errors in the report
+    // (exit 3), not as an `error:` line, so this is where its hint
+    // belongs: after the report, and only when the unreachable endpoint
+    // is the run's outcome. A different headline — an empty plan, a
+    // configuration error — already says enough about itself.
+    if exit_code == ExitCode::ExecutionError {
+        if let Some(hint) = report_input
+            .network
+            .as_ref()
+            .and_then(|summary| summary.error.as_deref())
+            .and_then(hint_for)
+        {
+            eprintln!("Hint: {hint}");
+        }
+    }
+
     Ok(exit_code)
 }
 
@@ -418,7 +439,7 @@ pub fn run_inspect(args: InspectArgs) -> ExitCode {
     match run_inspect_inner(args) {
         Ok(exit_code) => exit_code,
         Err(err) => {
-            eprintln!("error: {err}");
+            print_error(&err);
             ExitCode::from(&err)
         }
     }
@@ -591,7 +612,7 @@ pub fn run_fixtures(args: FixturesArgs) -> ExitCode {
     match run_fixtures_inner(args) {
         Ok(exit_code) => exit_code,
         Err(err) => {
-            eprintln!("error: {err}");
+            print_error(&err);
             ExitCode::from(&err)
         }
     }
@@ -685,7 +706,7 @@ pub fn run_report(args: ReportArgs) -> ExitCode {
     match run_report_inner(args) {
         Ok(exit_code) => exit_code,
         Err(err) => {
-            eprintln!("error: {err}");
+            print_error(&err);
             ExitCode::from(&err)
         }
     }
