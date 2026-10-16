@@ -11,7 +11,7 @@ pub mod terminal;
 
 use canary_core::{
     CompatibilityResult, GitContext, NetworkName, PolicyDecision, ProjectType, ProtocolVersion,
-    Surface,
+    SkipCode, Surface,
 };
 
 pub use json::JsonReporter;
@@ -26,6 +26,10 @@ pub struct SkipSummary {
     pub fixture_id: String,
     pub surface: Surface,
     pub reason: String,
+    /// The stable machine-readable skip reason written as
+    /// `skipped[].code` in the JSON report (CF-01). `reason` stays
+    /// free-form prose; tooling should key off this code instead.
+    pub code: SkipCode,
 }
 
 /// What is known about the project under test, for the report header.

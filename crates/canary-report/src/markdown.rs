@@ -207,6 +207,7 @@ mod tests {
             fixture_id: "p28-soroban-1".into(),
             surface: Surface::Soroban,
             reason: "requires a capability not declared by this project".into(),
+            code: canary_core::SkipCode::MissingCapability,
         });
         let text = MarkdownReporter::render(&input);
         assert!(text.contains("Skipped 1 fixture(s)."));
@@ -221,6 +222,7 @@ mod tests {
             fixture_id: "p28-soroban-1".into(),
             surface: Surface::Soroban,
             reason: "requires a capability not declared by this project".into(),
+            code: canary_core::SkipCode::MissingCapability,
         });
         let text = MarkdownReporter::render(&input);
         assert!(text.contains("Skipped 1 fixture(s)."));

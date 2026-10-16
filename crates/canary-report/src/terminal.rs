@@ -258,16 +258,23 @@ mod tests {
             fixture_id: "p28-soroban-1".into(),
             surface: canary_core::Surface::Soroban,
             reason: "requires a capability not declared by this project".into(),
+            code: canary_core::SkipCode::MissingCapability,
         });
         let text = TerminalReporter::render(&input);
         assert!(text.contains("Skipped fixtures: 1"));
     }
 
-    fn skip(fixture_id: &str, surface: canary_core::Surface, reason: &str) -> crate::SkipSummary {
+    fn skip(
+        fixture_id: &str,
+        surface: canary_core::Surface,
+        reason: &str,
+        code: canary_core::SkipCode,
+    ) -> crate::SkipSummary {
         crate::SkipSummary {
             fixture_id: fixture_id.into(),
             surface,
             reason: reason.into(),
+            code,
         }
     }
 
@@ -279,11 +286,13 @@ mod tests {
             "p28-soroban-1",
             canary_core::Surface::Soroban,
             "requires a capability not declared by this project",
+            canary_core::SkipCode::MissingCapability,
         ));
         input.skipped.push(skip(
             "p28-rpc-2",
             canary_core::Surface::Rpc,
             "no RPC endpoint configured",
+            canary_core::SkipCode::Unknown,
         ));
         let text = TerminalReporter::render(&input);
         assert!(text.contains("Skipped fixtures: 2"));
@@ -300,11 +309,13 @@ mod tests {
             "p28-soroban-1",
             canary_core::Surface::Soroban,
             "requires a capability not declared by this project",
+            canary_core::SkipCode::MissingCapability,
         ));
         input.skipped.push(skip(
             "p28-rpc-2",
             canary_core::Surface::Rpc,
             "no RPC endpoint configured",
+            canary_core::SkipCode::Unknown,
         ));
         let text = TerminalReporter::render(&input);
         assert!(text.contains("Skipped fixtures: 2"));
