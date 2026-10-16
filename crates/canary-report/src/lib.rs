@@ -8,6 +8,7 @@
 pub mod json;
 pub mod markdown;
 pub mod terminal;
+pub mod writer;
 
 use canary_core::{
     CompatibilityResult, GitContext, NetworkName, PolicyDecision, ProjectType, ProtocolVersion,
@@ -17,6 +18,7 @@ use canary_core::{
 pub use json::JsonReporter;
 pub use markdown::MarkdownReporter;
 pub use terminal::TerminalReporter;
+pub use writer::atomic_write_report;
 
 /// A fixture the planner decided not to run, and why — carried into the
 /// report as plain data so reporters don't need to depend on
