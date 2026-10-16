@@ -177,6 +177,9 @@ fn rendered_report() -> String {
         run: Some(RunSummary {
             tool_build_commit: Some("68a5f8d52573fa741e095bc321443015f0f21250".into()),
         }),
+        // CF-04 evidence lives with the fixture pack, never in the report
+        // JSON, so a schema conformance report carries none.
+        verification: Vec::new(),
     };
     JsonReporter::render(&input)
 }
