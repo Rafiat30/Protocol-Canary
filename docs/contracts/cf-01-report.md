@@ -284,7 +284,7 @@ Invalid: unsupported version.
 
 | Unit | Repo | Depends on | Notes |
 |---|---|---|---|
-| CF-01-A Publish a JSON Schema for report v1 matching section 3 | Protocol-Canary | this contract | Schema must accept `0.1.1` output and ignore unknown properties. |
+| CF-01-A Publish a JSON Schema for report v1 matching section 3 | Protocol-Canary | this contract | **Done** — `docs/schemas/report-v1.schema.json` (draft 2020-12). Accepts `0.1.1` output and ignores unknown properties; conformance tests validate real rendered reports and the examples in this document. |
 | CF-01-B Conformance test: reporter output validates against the schema | Protocol-Canary | CF-01-A | |
 | CF-01-C Corpus of real `v0.1.0` and `v0.1.1` reports and parse tests | Protocol-Canary | none | Needs the tagged binaries; do not hand-write them. |
 | CF-01-D Emit `skipped[].code` | Protocol-Canary | this contract | **Done.** The scheduler's `SkipCause` (RH-03) maps to the standard codes `UNSUPPORTED_PROTOCOL`, `SURFACE_DISABLED` and `MISSING_CAPABILITY`; `NETWORK_MISMATCH` is reserved and `UNKNOWN` is the fallback for an unrecognized or absent value. The planner still records the cause itself; only its report spelling changed from the planned kebab form. |

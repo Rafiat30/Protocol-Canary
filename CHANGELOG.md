@@ -51,6 +51,14 @@ All notable changes to this project are documented in this file.
   reserved for a future network-identity skip). `schemaVersion` stays `1`;
   older reports lack the field, which reads back as `UNKNOWN`, and
   consumers must ignore codes they do not know.
+- The formal JSON Schema for the version 1 report (CF-01-A/CF-01-B) is
+  published at `docs/schemas/report-v1.schema.json` (draft 2020-12). It
+  requires exactly the fields CF-01 section 3 requires, pins the closed
+  sets (`status`, `surface`, `project.type`) to their current values and
+  ignores unknown properties, so an additively extended report still
+  validates. Conformance tests validate real rendered reports and the
+  CF-01 examples against it, and reject reports missing required sections
+  or carrying invalid statuses.
 - `--rpc-max-retries <N>` (default `3`) and `--rpc-retry-delay-ms <MS>`
   (default `500`) on `check`: how many times a failed RPC attempt may be
   retried and the linear-backoff base delay between attempts. `0` retries
