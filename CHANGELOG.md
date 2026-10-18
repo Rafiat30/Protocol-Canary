@@ -53,6 +53,14 @@ All notable changes to this project are documented in this file.
   fix `--config`). An error with no advice to give keeps printing
   exactly one clean error line. Error wording, categories and exit codes
   are unchanged.
+- The formal JSON Schema for the version 1 report (CF-01-A/CF-01-B) is
+  published at `docs/schemas/report-v1.schema.json` (draft 2020-12). It
+  requires exactly the fields CF-01 section 3 requires, pins the closed
+  sets (`status`, `surface`, `project.type`) to their current values and
+  ignores unknown properties, so an additively extended report still
+  validates. Conformance tests validate real rendered reports and the
+  CF-01 examples against it, and reject reports missing required sections
+  or carrying invalid statuses.
 - `--rpc-max-retries <N>` (default `3`) and `--rpc-retry-delay-ms <MS>`
   (default `500`) on `check`: how many times a failed RPC attempt may be
   retried and the linear-backoff base delay between attempts. `0` retries
