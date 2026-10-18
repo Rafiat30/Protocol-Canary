@@ -47,6 +47,9 @@ pub enum Command {
     Fixtures(FixturesArgs),
     /// Render a previously generated JSON report.
     Report(ReportArgs),
+    /// Manage the local result cache.
+    #[command(subcommand)]
+    Cache(CacheArgs),
     /// Print the tool version.
     Version,
 }
@@ -98,9 +101,9 @@ pub struct CheckArgs {
     pub network_passphrase: Option<String>,
 
     /// Directory to treat as the project root (default: the current
-    /// directory). Relative `--config`, `--fixtures-dir` and `--output`
-    /// paths are resolved against it. The root is never searched for in
-    /// parent directories.
+    /// directory). Relative `--config`, `--fixtures-dir`, `--cache-dir` and
+    /// `--output` paths are resolved against it. The root is never searched
+    /// for in parent directories.
     #[arg(long = "project-root", value_name = "PATH")]
     pub project_root: Option<PathBuf>,
 
@@ -113,10 +116,28 @@ pub struct CheckArgs {
     #[arg(long = "rpc-timeout", default_value = "10")]
     pub rpc_timeout: u64,
 
+    /// Maximum number of retries after a failed RPC attempt. `0` disables
+    /// retries: the call fails on the first network error. Each retry is a
+    /// full request, so the total number of attempts is n + 1.
+    #[arg(long = "rpc-max-retries", default_value_t = 3)]
+    pub rpc_max_retries: u32,
+
+    /// Base delay between RPC retry attempts, in milliseconds. The backoff
+    /// is linear: attempt n waits n times this value.
+    #[arg(long = "rpc-retry-delay-ms", default_value_t = 500)]
+    pub rpc_retry_delay_ms: u64,
+
     /// Directory containing fixture files (overrides `fixtures_dir` in
     /// .stellar-canary.toml; default: fixtures).
     #[arg(long = "fixtures-dir", value_name = "PATH")]
     pub fixtures_dir: Option<PathBuf>,
+
+    /// Directory for cached fixture execution results (default:
+    /// .stellar-canary-cache in the project root). The directory is created
+    /// if it does not exist. Relative paths are resolved against
+    /// --project-root when it is given.
+    #[arg(long = "cache-dir", value_name = "PATH")]
+    pub cache_dir: Option<PathBuf>,
 
     /// Output format.
     #[arg(long, value_enum, default_value_t = OutputFormat::Terminal)]
@@ -163,6 +184,27 @@ pub struct CheckArgs {
         value_parser = clap::value_parser!(u64).range(1..)
     )]
     pub live_cache_ttl: Option<u64>,
+}
+
+/// Arguments for the `cache` command group.
+#[derive(Debug, Subcommand)]
+pub enum CacheArgs {
+    /// Delete cached fixture execution results and report reclaimed space.
+    Clear(CacheClearArgs),
+}
+
+/// Arguments for `stellar-canary cache clear`.
+#[derive(Debug, Parser)]
+pub struct CacheClearArgs {
+    /// Directory to treat as the project root (default: the current
+    /// directory). Relative `--cache-dir` paths are resolved against it.
+    #[arg(long = "project-root", value_name = "PATH")]
+    pub project_root: Option<PathBuf>,
+
+    /// Directory for cached fixture execution results (default:
+    /// .stellar-canary-cache in the project root).
+    #[arg(long = "cache-dir", value_name = "PATH")]
+    pub cache_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
@@ -224,6 +266,10 @@ pub struct InspectArgs {
     /// Shorthand for --format json.
     #[arg(long)]
     pub json: bool,
+
+    /// Include verbose diagnostic details in output.
+    #[arg(long)]
+    pub verbose: bool,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
@@ -274,6 +320,36 @@ pub struct FixturesArgs {
 }
 
 #[derive(Debug, Parser)]
+/// Arguments for the `stellar-canary report` subcommand ([`Command::Report`]).
+///
+/// `report` re-renders a JSON report that an earlier `check` run stored (the
+/// contract in `docs/json-report-contract.md`) into another format, without
+/// touching the network, the fixtures, or the project. It exists so a report
+/// captured on one machine — or in CI — can be re-rendered elsewhere, and so
+/// `check --format json | stellar-canary report -` can pipe a run straight
+/// into a Markdown job summary.
+///
+/// The two fields map one-to-one onto the subcommand's arguments:
+///
+/// - [`ReportArgs::path`] is the positional report file, or `-` to read the
+///   report from standard input until EOF (capped at 10 MiB).
+/// - [`ReportArgs::format`] is the `--format` flag: `markdown` by default,
+///   with `terminal`, `json` and `junit` available.
+///
+/// Parsing is performed by `clap` and performs no I/O and cannot panic: a
+/// missing path, an unknown format, or an unreadable or malformed report is
+/// a failure of the *run*, not of parsing — `run_report` reports it on
+/// stderr and maps it to a configuration error (exit code 2). The parse
+/// itself only fails with clap's usage message and exit status 2, before a
+/// `ReportArgs` value ever exists.
+///
+/// # Examples
+///
+/// ```text
+/// stellar-canary report results.json
+/// stellar-canary report results.json --format json
+/// stellar-canary check --format json | stellar-canary report -
+/// ```
 pub struct ReportArgs {
     /// Path to a JSON report produced by `stellar-canary check --json`, or
     /// `-` to read the report from standard input until EOF (10 MiB max).
@@ -364,6 +440,31 @@ mod tests {
     }
 
     #[test]
+    fn cache_dir_flag_defaults_to_none() {
+        let cli = Cli::parse_from(["stellar-canary", "check"]);
+        if let Command::Check(args) = cli.command {
+            assert_eq!(args.cache_dir, None);
+        } else {
+            panic!("Expected Check command");
+        }
+    }
+
+    #[test]
+    fn cache_dir_flag_takes_a_path() {
+        let cli = Cli::parse_from([
+            "stellar-canary",
+            "check",
+            "--cache-dir",
+            "build/canary-cache",
+        ]);
+        if let Command::Check(args) = cli.command {
+            assert_eq!(args.cache_dir, Some(PathBuf::from("build/canary-cache")));
+        } else {
+            panic!("Expected Check command");
+        }
+    }
+
+    #[test]
     fn network_passphrase_flag_is_absent_by_default() {
         let cli = Cli::parse_from(["stellar-canary", "check"]);
         if let Command::Check(args) = cli.command {
@@ -402,5 +503,77 @@ mod tests {
         let text = err.to_string();
         assert!(text.contains("--network-passphrase"), "{text}");
         assert!(text.contains("the passphrase cannot be empty"), "{text}");
+    }
+
+    #[test]
+    fn rpc_retry_flags_default_to_three_retries_and_500_milliseconds() {
+        let cli = Cli::parse_from(["stellar-canary", "check"]);
+        if let Command::Check(args) = cli.command {
+            assert_eq!(args.rpc_max_retries, 3);
+            assert_eq!(args.rpc_retry_delay_ms, 500);
+        } else {
+            panic!("Expected Check command");
+        }
+    }
+
+    #[test]
+    fn rpc_retry_flags_take_custom_values() {
+        let cli = Cli::parse_from([
+            "stellar-canary",
+            "check",
+            "--rpc-max-retries",
+            "0",
+            "--rpc-retry-delay-ms",
+            "250",
+        ]);
+        if let Command::Check(args) = cli.command {
+            assert_eq!(args.rpc_max_retries, 0);
+            assert_eq!(args.rpc_retry_delay_ms, 250);
+        } else {
+            panic!("Expected Check command");
+        }
+    }
+
+    #[test]
+    fn cache_clear_subcommand_defaults_to_none() {
+        let cli = Cli::parse_from(["stellar-canary", "cache", "clear"]);
+        if let Command::Cache(CacheArgs::Clear(args)) = cli.command {
+            assert_eq!(args.cache_dir, None);
+            assert_eq!(args.project_root, None);
+        } else {
+            panic!("Expected Cache::Clear command");
+        }
+    }
+
+    #[test]
+    fn cache_clear_subcommand_takes_a_cache_dir() {
+        let cli = Cli::parse_from([
+            "stellar-canary",
+            "cache",
+            "clear",
+            "--cache-dir",
+            "build/canary-cache",
+        ]);
+        if let Command::Cache(CacheArgs::Clear(args)) = cli.command {
+            assert_eq!(args.cache_dir, Some(PathBuf::from("build/canary-cache")));
+        } else {
+            panic!("Expected Cache::Clear command");
+        }
+    }
+
+    #[test]
+    fn cache_clear_subcommand_takes_a_project_root() {
+        let cli = Cli::parse_from([
+            "stellar-canary",
+            "cache",
+            "clear",
+            "--project-root",
+            "member",
+        ]);
+        if let Command::Cache(CacheArgs::Clear(args)) = cli.command {
+            assert_eq!(args.project_root, Some(PathBuf::from("member")));
+        } else {
+            panic!("Expected Cache::Clear command");
+        }
     }
 }
