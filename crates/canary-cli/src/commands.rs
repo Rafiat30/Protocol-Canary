@@ -12,12 +12,13 @@ use canary_report::{
     TerminalReporter,
 };
 use canary_rpc::{validate_network_info, HttpRpcClient, RetryPolicy, RpcClient, RpcError};
-use canary_runner::EnabledSurfaces;
+use canary_runner::{EnabledSurfaces, NetworkMode};
 
 use crate::cli::{
     CacheClearArgs, CheckArgs, FixturesArgs, FixturesFormat, InspectArgs, InspectFormat,
     OutputFormat, ReportArgs,
 };
+use crate::error::{hint_for, print_error};
 use crate::fixtures_json;
 use crate::inspect_json;
 use crate::network::{default_rpc_url, parse_network_name, resolve_passphrase};
@@ -170,7 +171,7 @@ pub async fn run_check(args: CheckArgs) -> ExitCode {
     match run_check_inner(args).await {
         Ok(exit_code) => exit_code,
         Err(err) => {
-            eprintln!("error: {err}");
+            print_error(&err);
             ExitCode::from(&err)
         }
     }
@@ -210,7 +211,16 @@ async fn run_check_inner(args: CheckArgs) -> Result<ExitCode, CanaryError> {
     project.project_type =
         canary_project::resolve_project_type(project.project_type, explicit_type);
 
-    let live_checks_needed = config.tests.rpc || config.tests.soroban;
+    // `--offline` never touches the network: no endpoint resolution, no
+    // `getNetwork` probe, and (see below) no RPC/Soroban fixtures in the
+    // plan — so an air-gapped run performs zero socket connections.
+    let network_mode = if args.offline {
+        NetworkMode::Offline
+    } else {
+        NetworkMode::Live
+    };
+    let live_checks_needed =
+        (config.tests.rpc || config.tests.soroban) && network_mode == NetworkMode::Live;
     let network_name = parse_network_name(&settings.network);
     let (network_context, network_summary) = if live_checks_needed {
         let rpc_url = settings
@@ -265,6 +275,10 @@ async fn run_check_inner(args: CheckArgs) -> Result<ExitCode, CanaryError> {
                 }
                 (Some(ProtocolVersion(info.protocol_version)), None)
             }
+            // A transport failure does not abort the run — each fixture
+            // still reports the outage as an execution error — and the
+            // matching `Hint:` is printed once at the end of the run, when
+            // (and only when) that outage is the run's outcome.
             Err(e) => (None, Some(e.to_string())),
         };
 
@@ -304,7 +318,13 @@ async fn run_check_inner(args: CheckArgs) -> Result<ExitCode, CanaryError> {
         rpc: config.tests.rpc,
         soroban: config.tests.soroban,
     };
-    let plan = canary_runner::build_plan(&loaded_fixtures, target_protocol, enabled, &project)?;
+    let plan = canary_runner::build_plan_with(
+        &loaded_fixtures,
+        target_protocol,
+        enabled,
+        &project,
+        network_mode,
+    )?;
 
     // A run that executes nothing proves nothing, so it must not look like a
     // pass. This is checked before any check runs and before a report exists,
@@ -437,6 +457,22 @@ async fn run_check_inner(args: CheckArgs) -> Result<ExitCode, CanaryError> {
     }
     println!("{rendered}");
 
+    // A transport failure surfaces as execution errors in the report
+    // (exit 3), not as an `error:` line, so this is where its hint
+    // belongs: after the report, and only when the unreachable endpoint
+    // is the run's outcome. A different headline — an empty plan, a
+    // configuration error — already says enough about itself.
+    if exit_code == ExitCode::ExecutionError {
+        if let Some(hint) = report_input
+            .network
+            .as_ref()
+            .and_then(|summary| summary.error.as_deref())
+            .and_then(hint_for)
+        {
+            eprintln!("Hint: {hint}");
+        }
+    }
+
     Ok(exit_code)
 }
 
@@ -505,7 +541,7 @@ pub fn run_inspect(args: InspectArgs) -> ExitCode {
     match run_inspect_inner(args) {
         Ok(exit_code) => exit_code,
         Err(err) => {
-            eprintln!("error: {err}");
+            print_error(&err);
             ExitCode::from(&err)
         }
     }
@@ -1011,7 +1047,7 @@ pub fn run_fixtures(args: FixturesArgs) -> ExitCode {
     match run_fixtures_inner(args) {
         Ok(exit_code) => exit_code,
         Err(err) => {
-            eprintln!("error: {err}");
+            print_error(&err);
             ExitCode::from(&err)
         }
     }
@@ -1139,7 +1175,7 @@ pub fn run_report(args: ReportArgs) -> ExitCode {
     match run_report_inner(args) {
         Ok(exit_code) => exit_code,
         Err(err) => {
-            eprintln!("error: {err}");
+            print_error(&err);
             ExitCode::from(&err)
         }
     }

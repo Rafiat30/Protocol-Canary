@@ -31,6 +31,9 @@ pub enum SkipCode {
     NetworkMismatch,
     /// The fixture's surface is switched off in configuration.
     SurfaceDisabled,
+    /// The run was started with `--offline` and the fixture needs network
+    /// access (RPC or Soroban).
+    Offline,
     /// Safe fallback: the reason is not one this build recognizes, or the
     /// report predates the `code` field. Never an empty string.
     #[default]
@@ -45,6 +48,7 @@ impl SkipCode {
             SkipCode::MissingCapability => "MISSING_CAPABILITY",
             SkipCode::NetworkMismatch => "NETWORK_MISMATCH",
             SkipCode::SurfaceDisabled => "SURFACE_DISABLED",
+            SkipCode::Offline => "OFFLINE",
             SkipCode::Unknown => "UNKNOWN",
         }
     }
@@ -62,6 +66,7 @@ impl SkipCode {
             "MISSING_CAPABILITY" => SkipCode::MissingCapability,
             "NETWORK_MISMATCH" => SkipCode::NetworkMismatch,
             "SURFACE_DISABLED" => SkipCode::SurfaceDisabled,
+            "OFFLINE" => SkipCode::Offline,
             _ => SkipCode::Unknown,
         }
     }
@@ -86,6 +91,7 @@ mod tests {
         assert_eq!(SkipCode::MissingCapability.as_str(), "MISSING_CAPABILITY");
         assert_eq!(SkipCode::NetworkMismatch.as_str(), "NETWORK_MISMATCH");
         assert_eq!(SkipCode::SurfaceDisabled.as_str(), "SURFACE_DISABLED");
+        assert_eq!(SkipCode::Offline.as_str(), "OFFLINE");
         assert_eq!(SkipCode::Unknown.as_str(), "UNKNOWN");
     }
 
@@ -96,6 +102,7 @@ mod tests {
             SkipCode::MissingCapability,
             SkipCode::NetworkMismatch,
             SkipCode::SurfaceDisabled,
+            SkipCode::Offline,
             SkipCode::Unknown,
         ] {
             assert!(!code.as_str().is_empty(), "{code:?} must not be empty");
@@ -113,6 +120,7 @@ mod tests {
             SkipCode::MissingCapability,
             SkipCode::NetworkMismatch,
             SkipCode::SurfaceDisabled,
+            SkipCode::Offline,
             SkipCode::Unknown,
         ] {
             assert_eq!(SkipCode::parse(code.as_str()), code);
